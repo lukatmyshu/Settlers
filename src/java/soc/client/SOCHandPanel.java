@@ -58,6 +58,7 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.MissingResourceException;
 import java.util.Timer;  // For auto-roll
+import java.util.Random;
 import java.util.TimerTask;
 
 import javax.swing.JLabel;
@@ -104,7 +105,7 @@ public class SOCHandPanel extends Panel
     /** Auto-roll timer countdown, 5 seconds unless changed at program start. */
     public static int AUTOROLL_TIME = 5;
 
-    public static int AUTOFINISH_TIME = 5*60; /* 5 minutes max to play per turn*/
+    public static int AUTOFINISH_TIME = 5; /* 5 minutes max to play per turn*/
 
     /** Array of five zeroes, one per resource type; for {@link #sqPanel}. */
     protected static final int[] zero = { 0, 0, 0, 0, 0 };
@@ -3684,6 +3685,32 @@ public class SOCHandPanel extends Panel
                     setRollPrompt(MessageFormat.format(AUTOFINISH_COUNTDOWN, Integer.valueOf(timeRemain)), false);
                 } else {
                     setRollPrompt(null, false);
+
+                    if (game.getGameState() == SOCGame.PLACING_ROBBER) {
+                        //we haven't placed the robber
+                        int currentPlayerNumber = game.getCurrentPlayerNumber();
+                        SOCPlayer playerData = game.getPlayer(currentPlayerNumber);
+                        System.out.println("AutoPlacing Robber for player " + playerData.getName());
+                        final int[] hexes = game.getBoard().getLandHexCoords();
+                        ArrayList<Integer> possibleRobberPlacements = new ArrayList<Integer>(hexes.length);
+                        for(int i = 0; i<hexes.length; ++i)
+                        {
+                            /* ignore hexes we touch */
+                            if (playerData.getNumbers().hasNoResourcesForHex(hexes[i]) &&
+                                game.canMoveRobber(currentPlayerNumber, i))
+                            {
+                                possibleRobberPlacements.add(i);
+                            }
+                        }
+                        System.out.println("Possible locations " + possibleRobberPlacements);
+                        /* pick a random location from the valid ones */
+                        Random random = new Random();
+                        int index = random.nextInt(possibleRobberPlacements.size());
+                        int robberLocation = possibleRobberPlacements.get(index);
+                        System.out.println("Moving robber to " + robberLocation);
+                        game.moveRobber(currentPlayerNumber, robberLocation);
+
+                    }
                     client.getGameManager().endTurn(game);
                     cancel();  // End of countdown for this timer
                 }
