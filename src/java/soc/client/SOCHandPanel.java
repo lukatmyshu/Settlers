@@ -1467,7 +1467,6 @@ public class SOCHandPanel extends Panel
             setRollPrompt(null, false);  // Clear it
         client.getGameManager().rollDice(game);
         rollBut.setEnabled(false);  // Only one roll per turn
-        autoFinishSetupTimer();
     }
 
     /**
@@ -3733,6 +3732,7 @@ public class SOCHandPanel extends Panel
                 {
                     setRollPrompt(MessageFormat.format(AUTOROLL_COUNTDOWN, Integer.valueOf(timeRemain)), false);
                 } else {
+                    autoFinishSetupTimer(); //only auto finish turn if the user wasn't even there to roll
                     clickRollButton();  // Clear prompt, click Roll
                     cancel();  // End of countdown for this timer
                 }
