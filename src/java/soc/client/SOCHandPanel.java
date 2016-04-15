@@ -104,6 +104,8 @@ public class SOCHandPanel extends Panel
     /** Auto-roll timer countdown, 5 seconds unless changed at program start. */
     public static int AUTOROLL_TIME = 5;
 
+    public static int AUTOFINISH_TIME = 5*60; /* 5 minutes max to play per turn*/
+
     /** Array of five zeroes, one per resource type; for {@link #sqPanel}. */
     protected static final int[] zero = { 0, 0, 0, 0, 0 };
 
@@ -144,6 +146,8 @@ public class SOCHandPanel extends Panel
     private static final String RESOURCES = strings.get("hpan.rsrc") + " ";  // for other players (! playerIsClient)
     private static final String RESOURCES_TOTAL = strings.get("hpan.rsrc.total") + " ";  // "Total: " for playerIsClient
     protected static final String AUTOROLL_COUNTDOWN = strings.get("hpan.roll.autocountdown");  // "Auto-Roll in: {0}"
+    protected static final String AUTOFINISH_COUNTDOWN = strings.get("hpan.roll.autofinishcountdown");  // "Auto-Finish Turn in: {0}"
+
     protected static final String ROLL_OR_PLAY_CARD = strings.get("hpan.roll.rollorplaycard");  // "Roll or Play Card"
     private static final String OFFERBUTTIP_ENA = strings.get("hpan.trade.offer.tip.send");
         // "Send trade offer to other players"
@@ -443,6 +447,7 @@ public class SOCHandPanel extends Panel
     protected Label rollPromptCountdownLab;
     protected boolean rollPromptInUse;
     protected TimerTask autoRollTimerTask;  // Created every turn when countdown needed
+    protected TimerTask autoFinishTimerTask; // Created every turn
     protected Button rollBut;
 
     /** "Done" with turn during play; also "Restart" for board reset at end of game */
@@ -851,6 +856,7 @@ public class SOCHandPanel extends Panel
         add(rollPromptCountdownLab);
         rollPromptInUse = false;   // Nothing yet (no game in progress)
         autoRollTimerTask = null;  // Nothing yet
+        autoRollTimerTask = null;
 
         rollBut = new Button(ROLL);
         rollBut.addActionListener(this);
@@ -1003,6 +1009,10 @@ public class SOCHandPanel extends Panel
         }
         else if (target == DONE)
         {
+            if (autoFinishTimerTask != null) {
+                autoFinishTimerTask.cancel();
+                autoFinishTimerTask = null;
+            }
             // sqPanel.setValues(zero, zero);
             client.getGameManager().endTurn(game);
         }
@@ -1457,6 +1467,7 @@ public class SOCHandPanel extends Panel
             setRollPrompt(null, false);  // Clear it
         client.getGameManager().rollDice(game);
         rollBut.setEnabled(false);  // Only one roll per turn
+        autoFinishSetupTimer();
     }
 
     /**
@@ -1981,6 +1992,20 @@ public class SOCHandPanel extends Panel
         //   itself after AUTOROLL_TIME seconds.
         autoRollTimerTask = new HandPanelAutoRollTask();
         piTimer.scheduleAtFixedRate(autoRollTimerTask, 0, 1000 /* ms */ );
+    }
+
+    protected void autoFinishSetupTimer()
+    {
+        Timer piTimer = playerInterface.getEventTimer();
+        if (autoFinishTimerTask != null)
+            autoFinishTimerTask.cancel();  // cancel any previous
+
+        // Set up to run once per second, it will cancel
+        //   itself after AUTOFINISH_TIME seconds.
+        if (AUTOFINISH_TIME > 0) {
+            autoFinishTimerTask = new HandPanelAutoFinishTask();
+            piTimer.scheduleAtFixedRate(autoFinishTimerTask, 0, 1000 /* ms */);
+        }
     }
 
     /**
@@ -3631,6 +3656,45 @@ public class SOCHandPanel extends Panel
         }
     }
 
+
+    /**
+     *  Used for countdown of auto-finish of the current player
+     *  Updates on-screen countdown, fires auto-finish at 0.
+     *  @see SOCHandPanel#AUTOFINISH_TIME
+     */
+    protected class HandPanelAutoFinishTask extends java.util.TimerTask {
+        int timeRemain;  // seconds displayed, seconds at start of "run" tick
+
+        protected HandPanelAutoFinishTask() {
+            timeRemain = AUTOFINISH_TIME;
+        }
+
+        @Override
+        public void run() {
+            // for debugging
+            if (Thread.currentThread().getName().startsWith("Thread-")) {
+                try {
+                    Thread.currentThread().setName("timertask-autofinish");
+                } catch (Throwable th) {
+                }
+            }
+
+            // autofinish function
+            try {
+                if (timeRemain > 0) {
+                    setRollPrompt(MessageFormat.format(AUTOFINISH_COUNTDOWN, Integer.valueOf(timeRemain)), false);
+                } else {
+                    setRollPrompt(null, false);
+                    client.getGameManager().endTurn(game);
+                    cancel();  // End of countdown for this timer
+                }
+            } catch (Throwable thr) {
+                playerInterface.chatPrintStackTrace(thr);
+            } finally {
+                --timeRemain;  // for next tick
+            }
+        }
+    }
 
     /**
      * Used for countdown before auto-roll of the current player.
